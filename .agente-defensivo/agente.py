@@ -258,6 +258,11 @@ def carregar_config(raiz, projeto):
     controles = mesclado.get("operacoes_sensiveis", {})
     ignorar = mesclado.get("ignorar", [])
     pastas = mesclado.get("ignorar_pastas", [])
+    funcoes = mesclado.get("funcoes_controle", [])
+    modulos = mesclado.get("modulos_com_controle", [])
+    for chave, lista in (("funcoes_controle", funcoes), ("modulos_com_controle", modulos)):
+        if not isinstance(lista, list) or any(not isinstance(item, str) or not item.strip() for item in lista):
+            raise ValueError(f"{chave} de {nome} deve ser uma lista de textos.")
     if perfil not in {"publico", "privado"} or not isinstance(rotas, list) or (perfil == "publico" and not rotas):
         raise ValueError(f"Perfil ou rotas inválidos no projeto {nome}.")
     if any(not isinstance(rota, str) or not rota.startswith("/") or "#" in rota for rota in rotas):
@@ -278,7 +283,9 @@ def carregar_config(raiz, projeto):
     if not isinstance(pastas, list) or any(not isinstance(item, str) for item in pastas):
         raise ValueError(f"ignorar_pastas de {nome} deve ser uma lista de nomes.")
     return {"nome": nome, "perfil": perfil, "rotas": rotas, "controles": controles,
-            "ignorar": ignorar, "pastas": set(pastas)}
+            "ignorar": ignorar, "pastas": set(pastas),
+            "funcoes": [re.compile(r"(?<![\w$])" + re.escape(f) + r"\s*\(") for f in funcoes],
+            "modulos": [re.compile(r"""from\s+['"]""" + re.escape(m)) for m in modulos]}
 
 
 # ----------------------------------------------------------------------------- auditoria
@@ -411,7 +418,9 @@ def auditar(projeto, pasta_inventario):
                 servidor = re.search(r"^\s*['\"]use server['\"]", fonte, re.M)
                 mutavel = ((rota_next and METODOS_MUTAVEIS.search(fonte)) or rota_pages
                            or EXPRESS_MUTAVEL.search(fonte) or servidor)
-                if mutavel and not e_teste and not MARCAS_CONTROLE.search(fonte) and relativo not in controles:
+                declarado = any(r.search(fonte) for r in cfg["funcoes"] + cfg["modulos"])
+                if mutavel and not e_teste and not declarado and not MARCAS_CONTROLE.search(fonte) \
+                        and relativo not in controles:
                     registrar("revisao", "ROTA_SEM_CONTROLE_APARENTE",
                               "Operação de escrita sem sessão, assinatura ou limite visível neste arquivo. "
                               "Confira se o controle é aplicado antes (middleware) ou declare em operacoes_sensiveis.",
@@ -539,12 +548,25 @@ def verificar_rls(sql, registrar):
                 r"(?i)\balter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?((?:\"?\w+\"?\.)?\"?\w+\"?)\s+"
                 r"enable\s+row\s+level\s+security", limpo):
             protegidas.add(normalizar(achado.group(1))[1])
+        # RLS ativado em lote: bloco DO com execute format('... enable row level security') sobre lista de nomes.
+        for bloco in re.finditer(r"(?is)\$(\w*)\$(.*?)\$\1\$", limpo):
+            corpo = bloco.group(2)
+            if re.search(r"(?i)execute\s+format\s*\(\s*'[^']*enable\s+row\s+level\s+security", corpo):
+                protegidas.update(nome.lower() for nome in re.findall(r"'([A-Za-z_]\w*)'", corpo))
         for achado in re.finditer(r"(?i)\bdrop\s+table\s+(?:if\s+exists\s+)?((?:\"?\w+\"?\.)?\"?\w+\"?)", limpo):
             removidas.add(normalizar(achado.group(1))[1])
-        for numero, linha in enumerate(texto.splitlines(), 1):
-            if re.search(r"(?i)(?:using|with\s+check)\s*\(\s*true\s*\)", linha.split("--", 1)[0]):
+        for achado in re.finditer(r"(?is)\bcreate\s+policy\b[^;]*", limpo):
+            politica = achado.group(0)
+            if not re.search(r"(?i)(?:using|with\s+check)\s*\(\s*true\s*\)", politica):
+                continue
+            linha = limpo.count("\n", 0, achado.start()) + 1
+            if re.search(r"(?i)\bfor\s+select\b", politica):
+                registrar("info", "POLITICA_RLS_LEITURA_PUBLICA",
+                          "Leitura liberada com (true). Confira se todas as colunas da tabela podem ser públicas.",
+                          relativo, linha)
+            else:
                 registrar("revisao", "POLITICA_RLS_PERMISSIVA",
-                          "Política RLS com (true) libera a operação para todo papel autorizado.", relativo, numero)
+                          "Política RLS com (true) libera escrita para todo papel autorizado.", relativo, linha)
     for tabela, (relativo, linha) in sorted(criadas.items()):
         if tabela not in protegidas and tabela not in removidas:
             registrar("alto", "RLS_DESATIVADO",
