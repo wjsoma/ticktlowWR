@@ -1,0 +1,10 @@
+{
+  "nome": "ticktlowwr",
+  "perfil": "publico",
+  "rotas_publicas": [
+    "/"
+  ],
+  "operacoes_sensiveis": {},
+  "ignorar_pastas": [],
+  "ignorar": []
+}

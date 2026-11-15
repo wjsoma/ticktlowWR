@@ -1,0 +1,20 @@
+WJSOMA — Política de uso de conteúdo e software
+
+A WJSOMA reserva os direitos sobre o código, os textos, as imagens, os
+relatórios, a organização original de bases e os demais materiais de sua
+titularidade publicados ou disponibilizados neste domínio.
+
+A raspagem, a extração automatizada, o espelhamento, a reprodução e a
+redistribuição desses materiais exigem autorização expressa da WJSOMA.
+A restrição inclui a coleta para criação de conjuntos de dados, treinamento,
+ajuste e avaliação de modelos de IA, bem como a ingestão sistemática para
+sistemas de recuperação de conteúdo por IA.
+
+Buscadores tradicionais podem rastrear páginas públicas de acordo com o
+robots.txt deste domínio. Widgets e materiais oferecidos para incorporação
+seguem as condições informadas na respectiva página, inclusive o crédito
+quando exigido.
+
+Licenças de terceiros, permissões expressas e hipóteses previstas em lei
+continuam aplicáveis. Para licenciamento ou comunicação de reprodução
+indevida, use o contato institucional publicado neste site.
